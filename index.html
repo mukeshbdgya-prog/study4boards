@@ -176,8 +176,9 @@
     </footer>
 
     <script>
-        // UPDATED API KEY
-        const apiKey = "AIzaSyAYP4BEYBuDDdBBZoFMzWQB9p6e3siewWw";
+        // Updated API Key from user input
+        const apiKey = "AIzaSyB9G-RrTteMH8QeqVsJHnko9FFQf3pR-bw";
+        
         let currentSubject = "";
         let questions = [];
         let currentIndex = 0;
@@ -210,14 +211,15 @@
                 showView('quiz-view');
             } catch (err) {
                 console.error("Error Detail:", err);
-                alert("AI Engine Error: " + err.message + "\n\nPlease ensure your API Key is valid and has permission to use the Gemini models.");
+                alert("AI Engine Error: " + err.message + "\n\nTry ensuring your API key is active and correctly configured in Google AI Studio.");
                 showHome();
             }
         }
 
         async function fetchAIQuestions(subject) {
-            // Using a standard v1beta endpoint for broad compatibility
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // Using the correct model for text generation in this environment
+            const modelName = "gemini-2.5-flash-preview-09-2025";
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
             
             const payload = {
                 contents: [{ 
@@ -230,23 +232,35 @@
                 }
             };
 
-            const response = await fetch(endpoint, {
+            const fetchWithRetry = async (url, options, retries = 5, backoff = 1000) => {
+                for (let i = 0; i < retries; i++) {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                    
+                    const errorData = await response.json();
+                    if (response.status !== 429 && response.status < 500) {
+                         throw new Error(errorData.error?.message || `Error ${response.status}`);
+                    }
+                    
+                    // Exponential backoff for retries
+                    await new Promise(resolve => setTimeout(resolve, backoff));
+                    backoff *= 2;
+                }
+                throw new Error("Maximum retries reached.");
+            };
+
+            const response = await fetchWithRetry(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-
-            if (!response.ok) {
-                const errorBody = await response.json();
-                throw new Error(errorBody.error?.message || "Failed to reach AI Server");
-            }
             
             const data = await response.json();
-            const textContent = data.candidates[0].content.parts[0].text;
+            const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textContent) throw new Error("Empty response from AI engine.");
             
-            // Clean the text in case AI added markdown blocks
-            const cleanJson = textContent.replace(/```json|```/g, "").trim();
-            const result = JSON.parse(cleanJson);
+            // Result is already parsed due to responseMimeType: application/json
+            const result = JSON.parse(textContent);
             return result.questions;
         }
 
