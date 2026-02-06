@@ -48,7 +48,7 @@
             <div class="bg-white rounded-[2.5rem] p-8 sm:p-12 border border-slate-200 shadow-xl shadow-slate-200/50 mb-10 overflow-hidden relative">
                 <div class="relative z-10">
                     <h2 class="text-4xl sm:text-5xl font-black text-slate-900 mb-4 tracking-tight">AI Exam <br><span class="text-indigo-600">Simulator</span></h2>
-                    <p class="text-slate-500 text-lg mb-8 max-w-md leading-relaxed">Instantly generate 15 MCQ questions from previous CBSE Board Exams using the power of Gemini AI.</p>
+                    <p class="text-slate-500 text-lg mb-8 max-w-md leading-relaxed">Instantly generate 15 MCQ questions from previous CBSE Board Exams using the power of AI.</p>
                     
                     <div class="flex flex-wrap gap-3">
                         <div class="flex items-center gap-2 bg-slate-50 border border-slate-100 px-4 py-2.5 rounded-2xl text-sm font-bold text-slate-600">
@@ -172,11 +172,11 @@
     </main>
 
     <footer class="bg-white border-t border-slate-200 py-10 text-center">
-        <p class="text-[10px] text-slate-400 font-black uppercase tracking-[0.4em]">Powered by Gemini 2.5 Flash • Sachin Kumar 10B</p>
+        <p class="text-[10px] text-slate-400 font-black uppercase tracking-[0.4em]">Sachin Kumar 10B • Exam Practice Module</p>
     </footer>
 
     <script>
-        // INTEGRATED API KEY
+        // UPDATED API KEY
         const apiKey = "AIzaSyAYP4BEYBuDDdBBZoFMzWQB9p6e3siewWw";
         let currentSubject = "";
         let questions = [];
@@ -185,8 +185,12 @@
         let isAnswered = false;
 
         function showView(viewId) {
-            ['home-view', 'loading-view', 'quiz-view', 'result-view'].forEach(v => document.getElementById(v).classList.add('hidden'));
-            document.getElementById(viewId).classList.remove('hidden');
+            ['home-view', 'loading-view', 'quiz-view', 'result-view'].forEach(v => {
+                const el = document.getElementById(v);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(viewId);
+            if (target) target.classList.remove('hidden');
             lucide.createIcons();
         }
 
@@ -198,24 +202,27 @@
             
             try {
                 questions = await fetchAIQuestions(subject);
+                if (!questions || questions.length === 0) throw new Error("No questions returned");
+                
                 currentIndex = 0;
                 score = 0;
                 displayQuestion();
                 showView('quiz-view');
             } catch (err) {
-                console.error(err);
-                alert("Error connecting to AI. Please ensure your API key is valid and has Gemini access.");
+                console.error("Error Detail:", err);
+                alert("AI Engine Error: " + err.message + "\n\nPlease ensure your API Key is valid and has permission to use the Gemini models.");
                 showHome();
             }
         }
 
         async function fetchAIQuestions(subject) {
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            // Using a standard v1beta endpoint for broad compatibility
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             
             const payload = {
                 contents: [{ 
                     parts: [{ 
-                        text: `Generate 15 high-quality MCQs for CBSE Class 10 ${subject}. Must be actual Previous Year Questions. Format as JSON: { "questions": [ { "question": "", "options": ["", "", "", ""], "answer": 0-3, "year": "CBSE 20xx", "explanation": "" } ] }` 
+                        text: `Generate 15 MCQ questions for CBSE Class 10 ${subject}. These should be based on real Previous Year Questions. Output ONLY valid JSON in this format: { "questions": [ { "question": "Question text", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 0, "year": "CBSE 2022", "explanation": "Reasoning" } ] }` 
                     }] 
                 }],
                 generationConfig: { 
@@ -229,11 +236,18 @@
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error("API call failed");
+            if (!response.ok) {
+                const errorBody = await response.json();
+                throw new Error(errorBody.error?.message || "Failed to reach AI Server");
+            }
             
             const data = await response.json();
             const textContent = data.candidates[0].content.parts[0].text;
-            return JSON.parse(textContent).questions;
+            
+            // Clean the text in case AI added markdown blocks
+            const cleanJson = textContent.replace(/```json|```/g, "").trim();
+            const result = JSON.parse(cleanJson);
+            return result.questions;
         }
 
         function displayQuestion() {
@@ -282,10 +296,12 @@
                 btn.disabled = true;
                 if (i === correct) {
                     btn.classList.add('border-emerald-500', 'bg-emerald-50');
-                    btn.querySelector(`#status-${i}`).innerHTML = '<i data-lucide="check-circle" class="text-emerald-500 w-6 h-6"></i>';
+                    const statusDiv = btn.querySelector(`#status-${i}`);
+                    if (statusDiv) statusDiv.innerHTML = '<i data-lucide="check-circle" class="text-emerald-500 w-6 h-6"></i>';
                 } else if (i === idx) {
                     btn.classList.add('border-rose-500', 'bg-rose-50');
-                    btn.querySelector(`#status-${i}`).innerHTML = '<i data-lucide="x-circle" class="text-rose-500 w-6 h-6"></i>';
+                    const statusDiv = btn.querySelector(`#status-${i}`);
+                    if (statusDiv) statusDiv.innerHTML = '<i data-lucide="x-circle" class="text-rose-500 w-6 h-6"></i>';
                 } else {
                     btn.style.opacity = '0.5';
                 }
